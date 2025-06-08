@@ -27,11 +27,11 @@
 
 # 라이브러리 불러오기
 import cv2  # OpenCV: 카메라 키고 영상 화면에 띄우는 데 씀
-import mediapipe as mp  # MediaPipe: 사람 관절 위치 추적 (Pose Detection)
+import mediapipe as mp  # MediaPipe: 사람 관절 위치 추적
 import numpy as np  # numpy: 각도 계산할 때 벡터 연산용
 
 # MediaPipe 포즈 모듈 불러오기\mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(static_image_mode=False, model_complexity=1)  # 실시간 추적 모드로, 복잡도 1 (속도-정확도 밸런스)
+pose = mp_pose.Pose(static_image_mode=False, model_complexity=1)  # 실시간 추적 모드
 mp_draw = mp.solutions.drawing_utils  # 관절 위치 시각화용
 
 # 세 점(a, b, c)을 기준으로 각도를 구하는 함수 정의 (b를 기준점으로 좌우 각도 계산)
@@ -46,7 +46,7 @@ def calculate_angle(a, b, c):
 prev_left_wrist = None
 
 # 카메라 켜기
-cap = cv2.VideoCapture(0)  # 0번 카메라 (기본 웹캠)
+cap = cv2.VideoCapture(0)
 
 # 영상 프레임 반복
 while cap.isOpened():
@@ -91,7 +91,7 @@ while cap.isOpened():
         r_elbow_z = lm3d[mp_pose.PoseLandmark.RIGHT_ELBOW].z
         l_shoulder_z = lm3d[mp_pose.PoseLandmark.LEFT_SHOULDER].z
 
-        # 어깨-어깨-팔꿈치로 이뤄진 각도 구하기 (90도 근처면 좋음)
+        # 어깨-어깨-팔꿈치로 이뤄진 각도 구하기 (90도 근처)
         l_shoulder = [lm2d[mp_pose.PoseLandmark.LEFT_SHOULDER].x,
                       lm2d[mp_pose.PoseLandmark.LEFT_SHOULDER].y]
         r_shoulder = [lm2d[mp_pose.PoseLandmark.RIGHT_SHOULDER].x,
@@ -100,11 +100,11 @@ while cap.isOpened():
                    lm2d[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
         shoulder_angle = calculate_angle(l_shoulder, r_shoulder, r_elbow)
 
-        # ------------------
+        # -----------------------------------------------------
         # 좋은 자세 판정 기준:
-        #   - 오른팔꿈치가 몸보다 앞에 있음 (z기준)
-        #   - 어깨-어깨-팔꿈치 각도가 80~100도 사이
-        # ------------------
+        #   - 오른팔꿈치가 앞을 향함
+        #   - 왼손이 움직이지 않음
+        # -----------------------------------------------------
         if r_elbow_z < l_shoulder_z - 0.05 and 80 <= shoulder_angle <= 100:
             cv2.putText(image_bgr, 'Elbow posture Good', (50, 140),
                         cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
