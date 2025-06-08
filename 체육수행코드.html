@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>농구 슛 코드</title>
+  <style>
+    pre {
+      font-family: monospace;
+      white-space: pre;
+      overflow: auto;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h2>농구 슛 자세 판별 코드</h2>
+  <pre><code>
+import cv2
+import mediapipe as mp
+import numpy as np
+
+mp_pose = mp.solutions.pose
+pose = mp_pose.Pose(static_image_mode=False, model_complexity=1)
+mp_draw = mp.solutions.drawing_utils
+
+def calculate_angle(a, b, c):
+    a, b, c = np.array(a), np.array(b), np.array(c)
+    ba, bc = a - b, c - b
+    cosine = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+    return np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0)))
+
+prev_left_wrist = None
+cap = cv2.VideoCapture(0)
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    result = pose.process(image_rgb)
+    image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+    posture_bad = False
+
+    if result.pose_landmarks and result.pose_world_landmarks:
+        lm2d = result.pose_landmarks.landmark
+        lm3d = result.pose_world_landmarks.landmark
+
+        # 왼손 좌표
+        left_wrist = [
+            lm2d[mp_pose.PoseLandmark.LEFT_WRIST].x,
+            lm2d[mp_pose.PoseLandmark.LEFT_WRIST].y,
+        ]
+
+        # 왼손 움직임 감지
+        if prev_left_wrist:
+            dx = abs(left_wrist[0] - prev_left_wrist[0])
+            dy = abs(left_wrist[1] - prev_left_wrist[1])
+            if dx + dy > 0.01:
+                posture_bad = True
+                cv2.putText(image_bgr, 'Left hand moved!', (50, 100),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        prev_left_wrist = left_wrist
+
+        # 오른팔꿈치 z좌표 (앞으로 나왔는지)
+        r_elbow_z = lm3d[mp_pose.PoseLandmark.RIGHT_ELBOW].z
+        l_shoulder_z = lm3d[mp_pose.PoseLandmark.LEFT_SHOULDER].z
+
+        # 어깨-어깨-팔꿈치 각도 계산
+        l_shoulder = [lm2d[mp_pose.PoseLandmark.LEFT_SHOULDER].x,
+                      lm2d[mp_pose.PoseLandmark.LEFT_SHOULDER].y]
+        r_shoulder = [lm2d[mp_pose.PoseLandmark.RIGHT_SHOULDER].x,
+                      lm2d[mp_pose.PoseLandmark.RIGHT_SHOULDER].y]
+        r_elbow = [lm2d[mp_pose.PoseLandmark.RIGHT_ELBOW].x,
+                   lm2d[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
+        shoulder_angle = calculate_angle(l_shoulder, r_shoulder, r_elbow)
+
+        if r_elbow_z < l_shoulder_z - 0.05 and 80 <= shoulder_angle <= 100:
+            cv2.putText(image_bgr, 'Elbow posture Good', (50, 140),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        else:
+            posture_bad = True
+            cv2.putText(image_bgr, 'Elbow posture BAD', (50, 140),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+        mp_draw.draw_landmarks(image_bgr, result.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+
+    if posture_bad:
+        cv2.putText(image_bgr, 'Bad posture!', (50, 180),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+
+    cv2.imshow("Basketball Posture Checker", image_bgr)
+    if cv2.waitKey(10) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+
+  </code></pre>
+</body>
+</html>
