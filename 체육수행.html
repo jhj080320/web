@@ -1,0 +1,137 @@
+
+
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>2219 장현준</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      font-weight: 500;
+    }
+
+    pre {
+      font-family: monospace;
+      font-weight: 500;
+      white-space: pre;
+      overflow: auto;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h2>체육 수행평가 농구 슛 자세교정 프로그램</h2>
+  <pre><code>
+
+# 라이브러리 불러오기
+import cv2  # OpenCV: 카메라 키고 영상 화면에 띄우는 데 씀
+import mediapipe as mp  # MediaPipe: 사람 관절 위치 추적 (Pose Detection)
+import numpy as np  # numpy: 각도 계산할 때 벡터 연산용
+
+# MediaPipe 포즈 모듈 불러오기\mp_pose = mp.solutions.pose
+pose = mp_pose.Pose(static_image_mode=False, model_complexity=1)  # 실시간 추적 모드로, 복잡도 1 (속도-정확도 밸런스)
+mp_draw = mp.solutions.drawing_utils  # 관절 위치 시각화용
+
+# 세 점(a, b, c)을 기준으로 각도를 구하는 함수 정의 (b를 기준점으로 좌우 각도 계산)
+def calculate_angle(a, b, c):
+    a, b, c = np.array(a), np.array(b), np.array(c)
+    ba = a - b  # 벡터 b -> a
+    bc = c - b  # 벡터 b -> c
+    cosine = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+    return np.degrees(np.arccos(np.clip(cosine, -1.0, 1.0)))  # arccos 써서 각도(도 단위)로 반환
+
+# 왼손의 이전 위치 저장용 변수 (움직임 판단용)
+prev_left_wrist = None
+
+# 카메라 켜기
+cap = cv2.VideoCapture(0)  # 0번 카메라 (기본 웹캠)
+
+# 영상 프레임 반복
+while cap.isOpened():
+    ret, frame = cap.read()  # 카메라에서 프레임 읽어오기
+    if not ret:
+        break  # 프레임 읽기 실패하면 종료
+
+    # 프레임을 RGB로 바꿔서 mediapipe에 넣기 (OpenCV는 BGR, mediapipe는 RGB 씀)
+    image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    result = pose.process(image_rgb)  # 포즈 인식 실행
+    image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)  # 다시 BGR로 바꿔서 화면 출력용으로 사용
+
+    posture_bad = False  # 자세 상태 초기화 (기본은 good으로 시작)
+
+    # 관절 인식 결과가 있을 때만 처리 진행
+    if result.pose_landmarks and result.pose_world_landmarks:
+        lm2d = result.pose_landmarks.landmark  # 2D 좌표 (영상 기준, x/y만 있음)
+        lm3d = result.pose_world_landmarks.landmark  # 3D 좌표 (깊이 정보 포함, z값 있음)
+
+        # ------------------
+        # 왼손 움직임 감지
+        # ------------------
+        left_wrist = [
+            lm2d[mp_pose.PoseLandmark.LEFT_WRIST].x,
+            lm2d[mp_pose.PoseLandmark.LEFT_WRIST].y,
+        ]
+
+        if prev_left_wrist:
+            dx = abs(left_wrist[0] - prev_left_wrist[0])
+            dy = abs(left_wrist[1] - prev_left_wrist[1])
+            if dx + dy > 0.01:  # 손이 약간이라도 움직이면 BAD 판정
+                posture_bad = True
+                cv2.putText(image_bgr, 'Left hand moved!', (50, 100),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        prev_left_wrist = left_wrist  # 다음 프레임 비교를 위해 현재 좌표 저장
+
+        # ------------------
+        # 오른팔 위치와 각도 확인
+        # ------------------
+
+        # 오른팔꿈치가 몸 앞쪽으로 나와있는지 확인 (z좌표 이용)
+        r_elbow_z = lm3d[mp_pose.PoseLandmark.RIGHT_ELBOW].z
+        l_shoulder_z = lm3d[mp_pose.PoseLandmark.LEFT_SHOULDER].z
+
+        # 어깨-어깨-팔꿈치로 이뤄진 각도 구하기 (90도 근처면 좋음)
+        l_shoulder = [lm2d[mp_pose.PoseLandmark.LEFT_SHOULDER].x,
+                      lm2d[mp_pose.PoseLandmark.LEFT_SHOULDER].y]
+        r_shoulder = [lm2d[mp_pose.PoseLandmark.RIGHT_SHOULDER].x,
+                      lm2d[mp_pose.PoseLandmark.RIGHT_SHOULDER].y]
+        r_elbow = [lm2d[mp_pose.PoseLandmark.RIGHT_ELBOW].x,
+                   lm2d[mp_pose.PoseLandmark.RIGHT_ELBOW].y]
+        shoulder_angle = calculate_angle(l_shoulder, r_shoulder, r_elbow)
+
+        # ------------------
+        # 좋은 자세 판정 기준:
+        #   - 오른팔꿈치가 몸보다 앞에 있음 (z기준)
+        #   - 어깨-어깨-팔꿈치 각도가 80~100도 사이
+        # ------------------
+        if r_elbow_z < l_shoulder_z - 0.05 and 80 <= shoulder_angle <= 100:
+            cv2.putText(image_bgr, 'Elbow posture Good', (50, 140),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        else:
+            posture_bad = True
+            cv2.putText(image_bgr, 'Elbow posture BAD', (50, 140),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+        # 인식된 관절과 연결선 그려주기 (사람 형태 시각화)
+        mp_draw.draw_landmarks(image_bgr, result.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+
+    # 하나라도 BAD면 전체 자세도 BAD라고 표시
+    if posture_bad:
+        cv2.putText(image_bgr, 'Bad posture!', (50, 180),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+
+    # 영상 보여주기
+    cv2.imshow("Basketball Posture Checker", image_bgr)
+
+    # q 누르면 종료
+    if cv2.waitKey(10) & 0xFF == ord('q'):
+        break
+
+# 카메라 종료, 창 닫기
+cap.release()
+cv2.destroyAllWindows()
+
+  </code></pre>
+</body>
+</html>
