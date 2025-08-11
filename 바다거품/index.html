@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>해안거품 판별 (파일 업로드)</title>
 
-  <!-- 라이브러리 -->
+  <!-- TensorFlow.js & Teachable Machine 이미지 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.21.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.6/dist/teachablemachine-image.min.js"></script>
 
@@ -27,62 +27,67 @@
 
   <img id="preview" alt="업로드한 이미지 미리보기" />
   <div id="result" class="row"></div>
-  <div class="muted">* 브라우저에서 TF.js + Teachable Machine으로 예측합니다. 서버/파이썬 불필요.</div>
+  <div class="muted">* Teachable Machine( TensorFlow.js ) 모델로 브라우저에서 바로 예측합니다. 서버/파이썬 불필요.</div>
 
   <script>
-    // 1) 모델 경로: 현재 index.html 옆의 /model 폴더
-    const MODEL_URL = "./model/";   // 마지막 슬래시 꼭 유지
+    // === 1) 모델 경로 ===
+    const MODEL_URL = "https://jhj080320.github.io/web/%EB%B0%94%EB%8B%A4%EA%B1%B0%ED%92%88/model/";
 
-    // 2) 전역 변수
+    // === 2) 전역 변수 ===
     let model;
     let classname = [];
     let ready = false;
 
-    // 3) 모델 로드
+    // === 3) 모델 로드 ===
     async function loadTmModel() {
       try {
         model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
-        const labels = model.getClassLabels();     // TM이 제공
-        classname = Array.isArray(labels) ? labels : [];
+        classname = model.getClassLabels();
         ready = true;
         document.getElementById("btnPredict").disabled = false;
         console.log("모델 로드 완료:", classname);
       } catch (e) {
         console.error("모델 로드 실패:", e);
-        document.getElementById("result").textContent = "모델 로드 실패. MODEL_URL/파일 경로를 확인하세요.";
+        document.getElementById("result").textContent = "모델 로드 실패. MODEL_URL을 확인하세요.";
       }
     }
     loadTmModel();
 
-    // 4) 파일 선택 → 미리보기
+    // === 4) 파일 선택 → 미리보기 ===
     const fileInput = document.getElementById("fileInput");
-    const preview   = document.getElementById("preview");
+    const preview = document.getElementById("preview");
     let currentImageEl = null;
 
     fileInput.addEventListener("change", () => {
       const file = fileInput.files?.[0];
       if (!file) return;
+
       const url = URL.createObjectURL(file);
       preview.src = url;
       preview.style.display = "block";
-      currentImageEl = preview;  // <img> 엘리먼트를 그대로 입력으로 사용
+      currentImageEl = preview;
       document.getElementById("result").textContent = "";
     });
 
-    // 5) 예측
+    // === 5) 예측 ===
     document.getElementById("btnPredict").addEventListener("click", async () => {
       const resultEl = document.getElementById("result");
-      if (!ready) { resultEl.textContent = "모델이 아직 준비되지 않았습니다."; return; }
-      if (!currentImageEl) { resultEl.textContent = "먼저 이미지를 선택하세요."; return; }
+      if (!ready) {
+        resultEl.textContent = "모델이 아직 준비되지 않았습니다.";
+        return;
+      }
+      if (!currentImageEl) {
+        resultEl.textContent = "먼저 이미지를 선택하세요.";
+        return;
+      }
 
-      const predictions = await model.predict(currentImageEl); // [{className, probability}, ...]
+      const predictions = await model.predict(currentImageEl);
       const P = predictions.map(p => p.probability);
       let P_index = 0;
       for (let i = 1; i < P.length; i++) if (P[i] > P[P_index]) P_index = i;
       const P_label = predictions[P_index].className;
-      const Px      = predictions[P_index].probability;
+      const Px = predictions[P_index].probability;
 
-      // ← 여기 백틱 필수!
       resultEl.textContent = `예측 결과: ${P_label} (신뢰도: ${(Px * 100).toFixed(2)}%)`;
       console.log("전체 예측:", predictions);
     });
