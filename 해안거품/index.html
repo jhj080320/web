@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <title>해안거품 판별</title>
+  <title>해안거품 판별 (파일 업로드)</title>
 
   <!-- 라이브러리 (순서 중요) -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.21.0"></script>
@@ -15,34 +15,24 @@
       --border:rgba(255,255,255,.12);
     }
     *{box-sizing:border-box}
-    body{
-      margin:0; padding:24px; background:linear-gradient(180deg,#0a1120, #0b132b);
-      color:var(--text); font-family: ui-sans-serif,system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", Arial;
-      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-    }
+    body{ margin:0; padding:24px; background:linear-gradient(180deg,#0a1120,#0b132b);
+      color:var(--text); font-family: ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR",Arial; }
     .wrap{max-width:960px; margin:0 auto}
     h1{font-size:28px; margin:0 0 16px; font-weight:800; letter-spacing:.2px}
     p.sub{margin:0 0 24px; color:var(--muted)}
     .grid{display:grid; grid-template-columns:1fr 1fr; gap:20px}
     @media (max-width:820px){ .grid{grid-template-columns:1fr} }
 
-    .card{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow: 0 10px 30px rgba(0,0,0,.25)}
-    .drop{
-      border:1.5px dashed var(--border); border-radius:14px; padding:18px; text-align:center; transition:.2s;
-      background: rgba(255,255,255,.02);
-    }
-    .drop.drag{ border-color: var(--accent); background: rgba(47,115,255,.08) }
+    .card{background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .drop{ border:1.5px dashed var(--border); border-radius:14px; padding:18px; text-align:center; transition:.2s; background:rgba(255,255,255,.02) }
+    .drop.drag{ border-color:var(--accent); background:rgba(47,115,255,.08) }
     .row{margin:12px 0}
-    .btn{
-      appearance:none; border:none; border-radius:12px; padding:12px 16px; font-weight:700;
-      background:var(--accent); color:white; cursor:pointer; transition:.2s; width:100%;
-    }
+    .btn{ appearance:none; border:none; border-radius:12px; padding:12px 16px; font-weight:700;
+      background:var(--accent); color:white; cursor:pointer; transition:.2s; width:100%; }
     .btn[disabled]{opacity:.5; cursor:not-allowed}
     .btn.secondary{ background:transparent; border:1px solid var(--border); color:var(--text) }
     .actions{display:flex; gap:12px; margin-top:12px}
-    .preview{
-      width:100%; aspect-ratio:4/3; object-fit:contain; display:none; border-radius:12px; border:1px solid var(--border); background:#0d1426;
-    }
+    .preview{ width:100%; aspect-ratio:4/3; object-fit:contain; display:none; border-radius:12px; border:1px solid var(--border); background:#0d1426; }
 
     .result{display:none}
     .badge{display:inline-block; padding:6px 10px; border-radius:999px; font-size:12px; border:1px solid var(--border); color:var(--muted)}
@@ -51,7 +41,7 @@
     .bar{display:flex; align-items:center; gap:8px}
     .bar .label{width:120px; color:var(--muted); font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
     .bar .track{flex:1; height:10px; background:#0d172a; border-radius:999px; overflow:hidden; border:1px solid var(--border)}
-    .bar .fill{height:100%; width:0%; background:var(--accent); transition: width .4s ease}
+    .bar .fill{height:100%; width:0%; background:var(--accent); transition:width .4s ease}
     .pill{display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; margin-left:8px}
     .ok{background:rgba(34,197,94,.15); color:#86efac; border:1px solid rgba(34,197,94,.4)}
     .warn{background:rgba(245,158,11,.15); color:#facc15; border:1px solid rgba(245,158,11,.4)}
@@ -62,6 +52,14 @@
     .spinner{width:18px; height:18px; border:3px solid rgba(255,255,255,.25); border-top-color:#fff; border-radius:50%;
       display:inline-block; animation:spin 1s linear infinite; vertical-align:middle; margin-right:8px}
     @keyframes spin{to{transform:rotate(360deg)}}
+
+    /* 모달 */
+    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:50 }
+    .modal{ width:min(520px,94vw); background:#0f1a31; border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow:0 20px 60px rgba(0,0,0,.5) }
+    .modal h3{ margin:0 0 8px; font-size:18px }
+    .modal p{ margin:0 0 12px; color:var(--muted) }
+    .input{ width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--border); background:#0b1428; color:var(--text); outline:none }
+    .modal-actions{ display:flex; gap:10px; margin-top:14px }
   </style>
 </head>
 <body>
@@ -93,20 +91,41 @@
         <div><span class="badge">결과</span></div>
         <div class="score" id="mainResult" style="margin-top:8px">-</div>
         <div class="bars" id="bars"></div>
+
+        <!-- ★ 조건부 알림 버튼 (시뮬레이션) -->
+        <div class="actions" style="margin-top:14px">
+          <button id="btnNotify" class="btn" type="button" style="display:none">이 지역에 ‘해안거품’ 알림 보내기</button>
+        </div>
+        <p class="sub" id="notifyHint" style="display:none; margin-top:8px">* 신뢰도 50% 이상일 때만 나타납니다. (시뮬레이션)</p>
       </div>
     </div>
   </div>
 
   <div id="toast" class="toast"></div>
 
+  <!-- 모달 (지역 입력) -->
+  <div id="notifyModal" class="modal-backdrop">
+    <div class="modal">
+      <h3>내가 사는 지역 입력</h3>
+      <p>예: “부산 해운대구” 또는 격자번호(숫자)</p>
+      <input id="regionInput" class="input" placeholder="예: 103 또는 서울 송파구" />
+      <div class="modal-actions">
+        <button id="btnModalCancel" class="btn secondary" type="button">취소</button>
+        <button id="btnModalOk" class="btn" type="button">확인</button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    // ===== 1) 모델 경로 (해안거품/index.html 옆의 model 폴더) =====
-    const MODEL_URL = "./model/"; // 또는 절대경로: "https://jhj080320.github.io/web/해안거품/model/"
+    // ===== 1) 모델 경로 =====
+    const MODEL_URL = "./model/"; // 또는 절대경로 "https://jhj080320.github.io/web/해안거품/model/"
 
-    // ===== 2) 상태 =====
+    // ===== 2) 판정 기준 =====
+    const FOAM_LABEL = "바다거품"; // labels 이름과 정확히 일치해야 함
+    const THRESHOLD  = 0.5;       // 50%
+
+    // ===== 3) 상태 & 유틸 =====
     let model, classname = [], ready = false, currentImageEl = null;
-
-    // ===== 3) 유틸 =====
     const $ = sel => document.querySelector(sel);
     function toast(msg){ const t=$("#toast"); t.textContent=msg; t.style.display="block"; setTimeout(()=> t.style.display="none", 2200); }
     function setBusy(el, busy){
@@ -129,39 +148,23 @@
     }
     loadTmModel();
 
-    // ===== 5) 업로드 & 드래그앤드롭 =====
-    const fileInput = $("#fileInput");
-    const preview   = $("#preview");
-    const drop      = $("#drop");
+    // ===== 5) 업로드 =====
+    const fileInput = $("#fileInput"), preview = $("#preview"), drop = $("#drop");
     $("#btnBrowse").addEventListener("click", ()=> fileInput.click());
-
     drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("drag"); });
     drop.addEventListener("dragleave", ()=> drop.classList.remove("drag"));
-    drop.addEventListener("drop", e => {
-      e.preventDefault(); drop.classList.remove("drag");
-      const file = e.dataTransfer.files?.[0]; if(!file) return;
-      handleFile(file);
-    });
-
-    fileInput.addEventListener("change", ()=>{
-      const file = fileInput.files?.[0]; if(!file) return;
-      handleFile(file);
-    });
-
+    drop.addEventListener("drop", e => { e.preventDefault(); drop.classList.remove("drag"); const f=e.dataTransfer.files?.[0]; if(f) handleFile(f); });
+    fileInput.addEventListener("change", ()=>{ const f=fileInput.files?.[0]; if(f) handleFile(f); });
     function handleFile(file){
       if(!file.type.startsWith("image/")){ toast("이미지 파일을 선택하세요."); return; }
       const url = URL.createObjectURL(file);
-      preview.src = url;
-      preview.style.display = "block";
-      currentImageEl = preview;
-      $("#resultCard").style.display = "none";
-      $("#bars").innerHTML = "";
-      $("#mainResult").textContent = "-";
+      preview.src = url; preview.style.display = "block"; currentImageEl = preview;
+      $("#resultCard").style.display = "none"; $("#bars").innerHTML = ""; $("#mainResult").textContent = "-";
+      $("#btnNotify").style.display = "none"; $("#notifyHint").style.display = "none";
     }
 
     // ===== 6) 예측 =====
-    const btnPredict = $("#btnPredict");
-    btnPredict.dataset.loadingText = "예측 중";
+    const btnPredict = $("#btnPredict"); btnPredict.dataset.loadingText = "예측 중";
     btnPredict.addEventListener("click", async ()=>{
       const resultCard = $("#resultCard");
       if(!ready){ toast("모델 준비 중입니다."); return; }
@@ -169,37 +172,38 @@
 
       try{
         setBusy(btnPredict, true);
-        const predictions = await model.predict(currentImageEl); // [{className, probability}, ...]
-        // 정렬해서 Top-3 표시
+        const predictions = await model.predict(currentImageEl);
         predictions.sort((a,b)=> b.probability - a.probability);
         const top3 = predictions.slice(0, Math.min(3, predictions.length));
 
         const P_label = top3[0].className;
         const Px = top3[0].probability;
         const confPct = (Px*100).toFixed(2) + "%";
-
-        // 메인 결과 문구 + 신뢰도 색상 뱃지
         let pillClass = Px >= 0.8 ? "ok" : Px >= 0.5 ? "warn" : "bad";
         $("#mainResult").innerHTML = `예측 결과: <b>${P_label}</b> <span class="pill ${pillClass}">${confPct}</span>`;
 
-        // 막대 그래프
-        const bars = $("#bars");
-        bars.innerHTML = "";
+        const bars = $("#bars"); bars.innerHTML = "";
         top3.forEach(p=>{
-          const row = document.createElement("div");
-          row.className = "bar";
+          const row = document.createElement("div"); row.className = "bar";
           row.innerHTML = `
             <div class="label" title="${p.className}">${p.className}</div>
             <div class="track"><div class="fill" style="width:${(p.probability*100).toFixed(1)}%"></div></div>
-            <div style="width:60px; text-align:right">${(p.probability*100).toFixed(1)}%</div>
-          `;
+            <div style="width:60px; text-align:right">${(p.probability*100).toFixed(1)}%</div>`;
           bars.appendChild(row);
         });
 
+        // ★ 조건부: 해안거품 & 50% 이상이면 알림 버튼 노출
+        if (P_label === FOAM_LABEL && Px >= THRESHOLD) {
+          $("#btnNotify").style.display = "block";
+          $("#notifyHint").style.display = "block";
+        } else {
+          $("#btnNotify").style.display = "none";
+          $("#notifyHint").style.display = "none";
+        }
+
         resultCard.style.display = "block";
       }catch(err){
-        console.error(err);
-        toast("예측 중 오류가 발생했습니다.");
+        console.error(err); toast("예측 중 오류가 발생했습니다.");
       }finally{
         setBusy(btnPredict, false);
       }
@@ -207,14 +211,29 @@
 
     // ===== 7) 초기화 =====
     $("#btnReset").addEventListener("click", ()=>{
-      fileInput.value = "";
-      preview.src = "";
-      preview.style.display = "none";
-      currentImageEl = null;
-      $("#resultCard").style.display = "none";
-      $("#bars").innerHTML = "";
-      $("#mainResult").textContent = "-";
+      fileInput.value = ""; preview.src = ""; preview.style.display = "none"; currentImageEl = null;
+      $("#resultCard").style.display = "none"; $("#bars").innerHTML = ""; $("#mainResult").textContent = "-";
+      $("#btnNotify").style.display = "none"; $("#notifyHint").style.display = "none";
     });
+
+    // ===== 8) 알림(시뮬레이션) 버튼 → 모달 =====
+    const modal = $("#notifyModal"), regionInput = $("#regionInput");
+    $("#btnNotify").addEventListener("click", ()=>{
+      modal.style.display = "flex";
+      // 이전 입력을 기억하고 싶으면(localStorage) 아래 주석 해제
+      // regionInput.value = localStorage.getItem("myRegion") || "";
+      regionInput.focus();
+    });
+    $("#btnModalCancel").addEventListener("click", ()=> modal.style.display = "none");
+    $("#btnModalOk").addEventListener("click", ()=>{
+      const val = regionInput.value.trim();
+      if(!val){ toast("자신이 살고있는 지역을 입력해 주세요."); regionInput.focus(); return; }
+      // localStorage.setItem("myRegion", val); // 원하면 저장
+      modal.style.display = "none";
+      toast(`"${val}" 지역에 알림이 전송되었습니다.`);
+    });
+    // 모달 바깥 클릭 시 닫기
+    modal.addEventListener("click", (e)=>{ if(e.target === modal) modal.style.display = "none"; });
   </script>
 </body>
 </html>
