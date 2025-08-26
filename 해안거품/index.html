@@ -63,7 +63,7 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>해안 거품 판별</h1>
+    <h1>해안거품 판별</h1>
     <p class="sub">이미지 파일을 업로드하면, 해안거품 여부를 판단합니다.</p>
 
     <div class="grid">
@@ -91,7 +91,7 @@
         <div class="bars" id="bars"></div>
 
         <div class="actions" style="margin-top:14px">
-          <button id="btnNotify" class="btn" type="button" style="display:none">이 지역에 해안 거품 알림 보내기</button>
+          <button id="btnNotify" class="btn" type="button" style="display:none">이 지역에 해안거품 알림 보내기</button>
         </div>
         <p class="sub" id="notifyHint" style="display:none; margin-top:8px">(신뢰도 50% 이상일 때만 나타납니다.)</p>
       </div>
@@ -103,8 +103,8 @@
   <!-- 모달 (지역 입력) -->
   <div id="notifyModal" class="modal-backdrop">
     <div class="modal">
-      <h3>해안 거품 발생 지역 입력</h3>
-      <p>해안 거품이 발생한 지역의 주소나 지역번호를 적어주세요.</p>
+      <h3>해안거품 발생 지역 입력</h3>
+      <p>해안거품이 발생한 지역의 주소나 지역번호를 적어주세요.</p>
       <input id="regionInput" class="input" placeholder="ex) 103 또는 진주시 진성면" />
       <div class="modal-actions">
         <button id="btnModalCancel" class="btn secondary" type="button">취소</button>
@@ -117,7 +117,7 @@
 
     const MODEL_URL = "./model/";
 
-    const FOAM_LABEL = "해안 거품";
+    const FOAM_LABEL = "해안거품";
     const THRESHOLD  = 0.5;
 
     let model, classname = [], ready = false, currentImageEl = null;
@@ -216,7 +216,7 @@
     $("#btnModalCancel").addEventListener("click", ()=> modal.style.display = "none");
     $("#btnModalOk").addEventListener("click", ()=>{
       const val = regionInput.value.trim();
-      if(!val){ toast("해안 거품 발생 지역을 정확히 입력해 주세요."); regionInput.focus(); return; }
+      if(!val){ toast("해안거품 발생 지역을 정확히 입력해 주세요."); regionInput.focus(); return; }
 
       modal.style.display = "none";
       toast(`"${val}" 해당 지역에 알림이 전송되었습니다.`);
