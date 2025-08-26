@@ -2,9 +2,8 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <title>해안거품 판별 (파일 업로드)</title>
+  <title>해안거품 판별</title>
 
-  <!-- 라이브러리 (순서 중요) -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.21.0"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 
@@ -64,8 +63,8 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>해안거품 판별</h1>
-    <p class="sub">이미지 파일을 업로드하면, 브라우저에서 바로 모델로 판별합니다. (서버/파이썬 불필요)</p>
+    <h1>해안 거품 판별</h1>
+    <p class="sub">이미지 파일을 업로드하면, 해안거품 여부를 판단합니다.</p>
 
     <div class="grid">
       <!-- 업로드 카드 -->
@@ -86,17 +85,15 @@
         </div>
       </div>
 
-      <!-- 결과 카드 -->
       <div class="card result" id="resultCard">
         <div><span class="badge">결과</span></div>
         <div class="score" id="mainResult" style="margin-top:8px">-</div>
         <div class="bars" id="bars"></div>
 
-        <!-- ★ 조건부 알림 버튼 (시뮬레이션) -->
         <div class="actions" style="margin-top:14px">
-          <button id="btnNotify" class="btn" type="button" style="display:none">이 지역에 ‘해안거품’ 알림 보내기</button>
+          <button id="btnNotify" class="btn" type="button" style="display:none">이 지역에 해안 거품 알림 보내기</button>
         </div>
-        <p class="sub" id="notifyHint" style="display:none; margin-top:8px">* 신뢰도 50% 이상일 때만 나타납니다. (시뮬레이션)</p>
+        <p class="sub" id="notifyHint" style="display:none; margin-top:8px">(신뢰도 50% 이상일 때만 나타납니다.)</p>
       </div>
     </div>
   </div>
@@ -106,9 +103,9 @@
   <!-- 모달 (지역 입력) -->
   <div id="notifyModal" class="modal-backdrop">
     <div class="modal">
-      <h3>내가 사는 지역 입력</h3>
-      <p>예: “부산 해운대구” 또는 격자번호(숫자)</p>
-      <input id="regionInput" class="input" placeholder="예: 103 또는 서울 송파구" />
+      <h3>해안 거품 발생 지역 입력</h3>
+      <p>해안 거품이 발생한 지역의 주소나 지역번호를 적어주세요.</p>
+      <input id="regionInput" class="input" placeholder="ex) 103 또는 진주시 진성면" />
       <div class="modal-actions">
         <button id="btnModalCancel" class="btn secondary" type="button">취소</button>
         <button id="btnModalOk" class="btn" type="button">확인</button>
@@ -117,14 +114,12 @@
   </div>
 
   <script>
-    // ===== 1) 모델 경로 =====
-    const MODEL_URL = "./model/"; // 또는 절대경로 "https://jhj080320.github.io/web/해안거품/model/"
 
-    // ===== 2) 판정 기준 =====
-    const FOAM_LABEL = "바다거품"; // labels 이름과 정확히 일치해야 함
-    const THRESHOLD  = 0.5;       // 50%
+    const MODEL_URL = "./model/";
 
-    // ===== 3) 상태 & 유틸 =====
+    const FOAM_LABEL = "해안 거품";
+    const THRESHOLD  = 0.5;
+
     let model, classname = [], ready = false, currentImageEl = null;
     const $ = sel => document.querySelector(sel);
     function toast(msg){ const t=$("#toast"); t.textContent=msg; t.style.display="block"; setTimeout(()=> t.style.display="none", 2200); }
@@ -133,7 +128,6 @@
       else{ el.disabled = false; el.textContent = el.dataset.label || el.textContent; }
     }
 
-    // ===== 4) 모델 로드 =====
     async function loadTmModel() {
       try {
         model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
@@ -148,7 +142,6 @@
     }
     loadTmModel();
 
-    // ===== 5) 업로드 =====
     const fileInput = $("#fileInput"), preview = $("#preview"), drop = $("#drop");
     $("#btnBrowse").addEventListener("click", ()=> fileInput.click());
     drop.addEventListener("dragover", e => { e.preventDefault(); drop.classList.add("drag"); });
@@ -163,7 +156,6 @@
       $("#btnNotify").style.display = "none"; $("#notifyHint").style.display = "none";
     }
 
-    // ===== 6) 예측 =====
     const btnPredict = $("#btnPredict"); btnPredict.dataset.loadingText = "예측 중";
     btnPredict.addEventListener("click", async ()=>{
       const resultCard = $("#resultCard");
@@ -192,7 +184,6 @@
           bars.appendChild(row);
         });
 
-        // ★ 조건부: 해안거품 & 50% 이상이면 알림 버튼 노출
         if (P_label === FOAM_LABEL && Px >= THRESHOLD) {
           $("#btnNotify").style.display = "block";
           $("#notifyHint").style.display = "block";
@@ -209,30 +200,28 @@
       }
     });
 
-    // ===== 7) 초기화 =====
+
     $("#btnReset").addEventListener("click", ()=>{
       fileInput.value = ""; preview.src = ""; preview.style.display = "none"; currentImageEl = null;
       $("#resultCard").style.display = "none"; $("#bars").innerHTML = ""; $("#mainResult").textContent = "-";
       $("#btnNotify").style.display = "none"; $("#notifyHint").style.display = "none";
     });
 
-    // ===== 8) 알림(시뮬레이션) 버튼 → 모달 =====
     const modal = $("#notifyModal"), regionInput = $("#regionInput");
     $("#btnNotify").addEventListener("click", ()=>{
       modal.style.display = "flex";
-      // 이전 입력을 기억하고 싶으면(localStorage) 아래 주석 해제
-      // regionInput.value = localStorage.getItem("myRegion") || "";
+
       regionInput.focus();
     });
     $("#btnModalCancel").addEventListener("click", ()=> modal.style.display = "none");
     $("#btnModalOk").addEventListener("click", ()=>{
       const val = regionInput.value.trim();
-      if(!val){ toast("자신이 살고있는 지역을 입력해 주세요."); regionInput.focus(); return; }
-      // localStorage.setItem("myRegion", val); // 원하면 저장
+      if(!val){ toast("해안 거품 발생 지역을 정확히 입력해 주세요."); regionInput.focus(); return; }
+
       modal.style.display = "none";
-      toast(`"${val}" 지역에 알림이 전송되었습니다.`);
+      toast(`"${val}" 해당 지역에 알림이 전송되었습니다.`);
     });
-    // 모달 바깥 클릭 시 닫기
+
     modal.addEventListener("click", (e)=>{ if(e.target === modal) modal.style.display = "none"; });
   </script>
 </body>
