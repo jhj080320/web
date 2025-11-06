@@ -3,17 +3,22 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>감정 분류</title>
+  <title>EEG 감정 분류 (Teachable Machine)</title>
+
   <style>
     :root { --bg:#0f172a; --card:#111827; --ink:#e5e7eb; --accent:#22d3ee; --muted:#94a3b8; }
-    body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,sans-serif}
-    .wrap{max-width:980px;margin:40px auto;padding:0 16px}
-    .card{background:var(--card);border:1px solid #1f2937;border-radius:16px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    body{margin:0;background:var(--bg);color:var(--ink);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Apple SD Gothic Neo,Noto Sans KR,sans-serif}
+    .wrap{max-width:900px;margin:40px auto;padding:0 16px}
+    .card{background:var(--card);border:1px solid #1f2937;border-radius:16px;
+      padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
     h1{font-size:clamp(20px,3.2vw,28px);margin:0 0 12px}
     .row{display:flex;gap:18px;flex-wrap:wrap}
     .pane{flex:1 1 320px}
-    .thumb{width:100%;aspect-ratio:16/9;object-fit:contain;background:#0b1220;border:1px dashed #334155;border-radius:12px}
-    .btn{display:inline-block;background:var(--accent);color:#082f49;border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
+    .thumb{width:100%;aspect-ratio:16/9;object-fit:contain;
+      background:#0b1220;border:1px dashed #334155;border-radius:12px}
+    .btn{display:inline-block;background:var(--accent);color:#082f49;
+      border:0;border-radius:12px;padding:10px 14px;font-weight:700;cursor:pointer}
     .btn:disabled{opacity:.5;cursor:not-allowed}
     .muted{color:var(--muted);font-size:14px}
     .topline{font-size:20px;font-weight:800;margin:8px 0 12px}
@@ -22,42 +27,46 @@
     .bar{height:10px;background:#0b1220;border-radius:6px;overflow:hidden}
     .bar>span{display:block;height:100%;background:linear-gradient(90deg,#22d3ee,#38bdf8)}
     .footer{margin-top:14px;font-size:13px;color:#64748b}
-    .labelpill{display:inline-block;padding:6px 10px;border-radius:999px;background:#0b1220;border:1px solid #1f2937;margin-top:4px}
+    .labelpill{display:inline-block;padding:6px 10px;border-radius:999px;
+      background:#0b1220;border:1px solid #1f2937;margin-top:4px}
   </style>
+
   <!-- Teachable Machine Image 라이브러리 -->
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
 </head>
+
 <body>
   <div class="wrap">
     <div class="card">
-      <h1>뇌파 측정 이미지 감정 분류</h1>
+      <h1>EEG 감정 분류 (기쁨 · 슬픔 · 화남 · 편안함)</h1>
 
       <div class="row">
         <div class="pane">
+          <p class="muted">모델 폴더 위치는 <code>./model/</code> (model.json, metadata.json, weights.bin)</p>
           <input id="file" type="file" accept="image/*" />
-          <button id="predictBtn" class="btn" disabled>예측 시작</button>
+          <button id="predictBtn" class="btn" disabled>예측 실행</button>
           <div style="margin-top:14px">
             <img id="preview" class="thumb" alt="업로드 미리보기" />
           </div>
+          <div class="footer">TIP: FFT 그래프 부분만 자르면 정확도가 올라갑니다.</div>
         </div>
 
         <div class="pane">
-          <div class="topline">최상위 예측: <span id="topLabel" class="labelpill">-</span></div>
+          <div class="topline">최고 확률 감정: <span id="topLabel" class="labelpill">-</span></div>
           <table id="table">
             <thead>
               <tr><th>감정</th><th>확률</th><th style="width:45%">시각화</th></tr>
             </thead>
             <tbody></tbody>
           </table>
-          <div class="footer" id="meta">모델: - | 클래스: - </div>
+          <div class="footer" id="meta">모델 로드 중...</div>
         </div>
       </div>
     </div>
   </div>
 
   <script>
-    // ⬇️ 필요시 경로만 바꾸세요. (Teachable Machine에서 받은 모델 폴더)
-    const MODEL_URL = "./model/"; // model.json 이 있는 폴더
+    const MODEL_URL = "./model/";  // 모델 폴더 경로
 
     let model, maxPredictions;
     const fileInput = document.getElementById("file");
@@ -67,66 +76,55 @@
     const topLabel = document.getElementById("topLabel");
     const meta = document.getElementById("meta");
 
+    // 모델 불러오기
     async function loadModel() {
       try {
         model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
         maxPredictions = model.getTotalClasses();
-        meta.textContent = `모델: 로드됨 | 클래스: ${maxPredictions}개`;
+        meta.textContent = `모델 로드 완료 | 클래스 수: ${maxPredictions}`;
         predictBtn.disabled = false;
       } catch (e) {
-        meta.textContent = "모델 로드 실패: ./model/ 에 model.json / metadata.json / weights.bin 이 있는지 확인하세요.";
+        meta.textContent = "❌ 모델 로드 실패: ./model/ 폴더 위치와 파일명을 확인하세요.";
         console.error(e);
       }
     }
 
-    // 이미지 읽기
+    // 이미지 선택
     fileInput.addEventListener("change", (e) => {
-      const file = e.target.files && e.target.files[0];
+      const file = e.target.files?.[0];
       if (!file) return;
-      const url = URL.createObjectURL(file);
-      preview.src = url;
-      // 업로드 즉시 예측하고 싶다면 아래 호출을 해제
-      // setTimeout(runPredict, 50);
+      preview.src = URL.createObjectURL(file);
     });
 
+    // 예측 버튼 클릭
     predictBtn.addEventListener("click", runPredict);
 
+    // 예측 실행
     async function runPredict() {
       if (!model) return alert("모델이 아직 로드되지 않았습니다.");
       if (!preview.src) return alert("이미지를 먼저 업로드하세요.");
 
-      // HTMLImageElement 그대로 예측 가능
       const predictions = await model.predict(preview, false);
-      // 확률 내림차순 정렬
-      predictions.sort((a,b) => b.probability - a.probability);
+      predictions.sort((a, b) => b.probability - a.probability);
 
-      // 최상위 라벨
       const best = predictions[0];
-      topLabel.textContent = `${best.className} (${(best.probability*100).toFixed(1)}%)`;
+      topLabel.textContent = `${best.className} (${(best.probability * 100).toFixed(1)}%)`;
 
-      // 테이블 렌더
       tableBody.innerHTML = "";
       predictions.forEach(p => {
+        const prob = (p.probability * 100).toFixed(1);
         const tr = document.createElement("tr");
-        const prob = (p.probability*100);
         tr.innerHTML = `
           <td>${p.className}</td>
-          <td>${prob.toFixed(1)}%</td>
-          <td>
-            <div class="bar"><span style="width:${prob}%;"></span></div>
-          </td>
+          <td>${prob}%</td>
+          <td><div class="bar"><span style="width:${prob}%;"></span></div></td>
         `;
         tableBody.appendChild(tr);
       });
     }
 
-    // 페이지 로드시 모델 로드
+    // 페이지 로드 시 모델 자동 불러오기
     loadModel();
-
-    // (선택) 클래스 이름을 강제로 지정하고 싶다면 metadata.json의 labels를 수정하거나,
-    // 예측 후 label 매핑 테이블을 아래처럼 적용하면 됩니다.
-    // const labelMap = { "class1": "기쁨", "class2": "슬픔", "class3": "화남", "class4": "편안함" };
-    // p.className = labelMap[p.className] ?? p.className;
   </script>
 </body>
 </html>
