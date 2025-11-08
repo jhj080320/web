@@ -3,117 +3,192 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>표정 인식 데모</title>
+  <title>2214 심영제, 2219 장현준</title>
 
-  <!-- TF.js & Teachable Machine Image -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans+KR:wght@400;600;800&display=swap" rel="stylesheet">
+
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
 
   <style>
-    :root { --bg:#0f172a; --card:#111827; --ink:#e5e7eb; --muted:#94a3b8; --accent:#22d3ee; }
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Apple SD Gothic Neo}
-    .wrap{max-width:1100px;margin:40px auto;padding:0 16px}
-    h1{font-size:28px;margin:0 0 16px}
-    .sub{color:var(--muted);margin-bottom:20px}
-    .card{background:var(--card);border-radius:16px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
-    .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-   button, label[for="file"] {
-  background: #1f2937;
-  color: var(--ink);
-  border: 1px solid #334155;
-  border-radius: 12px;
-  padding: 10px 14px;
-  cursor: pointer;
-}
+    :root{
+      --bg-1:#0b1220;
+      --bg-2:#0e1628;
+      --card:rgba(16,22,38,.55);
+      --card-border:rgba(255,255,255,.06);
+      --ink:#e6ebf3;
+      --muted:#9db0c6;
+      --accent:#47d6ff;
+      --accent-2:#7cf9d8;
+      --glow:0 10px 40px rgba(71,214,255,.25);
+      --radius:18px;
+    }
 
-    button:hover{background:#223047}
-    .row{display:flex;gap:16px;flex-wrap:wrap}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;color:var(--ink);
+      font-family: 'Inter','Noto Sans KR',ui-sans-serif,system-ui,Segoe UI,Roboto,Apple SD Gothic Neo;
+      background:
+        radial-gradient(60% 80% at 10% 10%, #10243d 0%, transparent 60%),
+        radial-gradient(70% 90% at 90% 20%, #0e3a36 0%, transparent 60%),
+        linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 100%);
+      background-attachment: fixed;
+    }
+
+    .wrap{max-width:1100px;margin:48px auto;padding:0 18px}
+    h1{font-size:32px;letter-spacing:.3px;margin:0 0 20px;
+      font-weight:800;background:linear-gradient(90deg,var(--ink),#cfe9ff);
+      -webkit-background-clip:text;background-clip:text;color:transparent}
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--card-border);
+      border-radius:var(--radius);
+      padding:22px;
+      box-shadow: var(--glow);
+      backdrop-filter: blur(10px);
+    }
+
+    .controls{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+
+    button, label[for="file"]{
+      position:relative;
+      background:linear-gradient(180deg, #1b2a44 0%, #162338 100%);
+      color:var(--ink);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:14px;
+      padding:10px 16px;
+      cursor:pointer;
+      transition:.18s transform ease,.18s box-shadow ease,.18s background ease;
+      box-shadow:0 4px 14px rgba(0,0,0,.25);
+    }
+    button:hover{transform:translateY(-1px); box-shadow:0 8px 22px rgba(0,0,0,.35);}
+    button:active{transform:translateY(0)}
+    button:disabled{opacity:.55;cursor:not-allowed;filter:grayscale(.2)}
+    #btnWebcam{background:linear-gradient(90deg, #1f2d4a 0%, #1d3a57 100%);}
+    #btnUpload{background:linear-gradient(90deg, #1a3a33 0%, #1b4a41 100%);}
+    #btnReset{background:linear-gradient(90deg, #3a1f2f 0%, #51243a 100%);}
+
+    .status{
+      font-size:14px;color:var(--muted);margin-left:auto;
+      display:flex;align-items:center;gap:8px;white-space:nowrap
+    }
+    .status::before{
+      content:"";
+      width:8px;height:8px;border-radius:50%;
+      background:radial-gradient(circle at 30% 30%, var(--accent), #0ff3);
+      box-shadow:0 0 14px var(--accent);
+      display:inline-block;
+      animation:pulse 1.6s ease-in-out infinite;
+    }
+    .warn{color:#f7a8a8}
+    @keyframes pulse{
+      0%,100%{opacity:.7;transform:scale(.95)}
+      50%{opacity:1;transform:scale(1)}
+    }
+
+    .row{display:flex;gap:18px;flex-wrap:wrap}
     .col{flex:1;min-width:300px}
-    video,canvas,img{width:100%;border-radius:12px;background:#0b1220}
-    .status{font-size:14px;color:var(--muted);margin-top:6px}
-    .bar{height:10px;background:#1f2937;border-radius:999px;overflow:hidden;margin:6px 0 14px}
-    .bar > div{height:100%;background:var(--accent);width:0%}
-    .prob-row{display:flex;justify-content:space-between;font-size:14px;color:var(--muted)}
-    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#1f2937;border:1px solid #334155;margin-left:6px}
-    .hidden{display:none !important}
-    .right-box{display:flex;flex-direction:column;gap:8px}
-    .label{font-size:18px}
-    .hint{font-size:12px;color:var(--muted)}
-    .warn{color:#fca5a5}
+    video,canvas,img{
+      width:100%;border-radius:14px;background:#0b1220;
+      border:1px solid rgba(255,255,255,.06); box-shadow:0 6px 18px rgba(0,0,0,.35)
+    }
+
+    .label{font-size:18px;font-weight:700;margin-bottom:6px}
+    .prob-row{display:flex;justify-content:space-between;gap:12px;font-size:14px;color:var(--muted)}
+    .bar{height:12px;background:linear-gradient(180deg,#0f1a2b,#0e1726);
+      border-radius:999px;overflow:hidden;margin:6px 0 16px;border:1px solid rgba(255,255,255,.06)}
+    .bar>div{
+      height:100%;
+      background:linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 100%);
+      width:0%; transition:width .28s ease;
+      box-shadow:0 0 16px rgba(71,214,255,.35) inset;
+    }
+
+    #dropZone{
+      border:2px dashed rgba(135,180,220,.45);
+      border-radius:14px;
+      padding:46px 20px;
+      text-align:center;
+      color:var(--muted);
+      transition:.18s border-color ease,.18s background ease,.18s color ease,.18s transform ease;
+      background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.015));
+      backdrop-filter: blur(4px);
+      user-select:none;
+    }
+    #dropZone b{color:#d8e7ff}
+    #dropZone.dragover{
+      border-color: var(--accent);
+      background:linear-gradient(180deg, rgba(71,214,255,.08), rgba(124,249,216,.05));
+      color:#dff7ff; transform:scale(1.01);
+      box-shadow:0 8px 28px rgba(71,214,255,.15);
+    }
+
+    .hidden{display:none!important}
+
+    ::-webkit-scrollbar{height:10px;width:10px}
+    ::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#2a3b5c,#1e2b44);border-radius:10px}
+    ::-webkit-scrollbar-track{background:rgba(255,255,255,.03)}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>표정 인식 데모 <span class="pill">Teachable Machine</span></h1>
-    <div class="sub">원하는 모드를 선택해줘. 웹캠 실시간 예측 또는 이미지 파일 업로드 예측.</div>
+    <h1>표정 인식 인공지능 모델</h1>
 
     <div class="card">
       <div class="controls">
-        <button id="btnLoad">모델 로드</button>
-        <button id="btnWebcam" disabled>웹캠 모드</button>
-        <button id="btnUpload" disabled>파일 업로드 모드</button>
+        <button id="btnWebcam" disabled>웹캠 열기</button>
+        <button id="btnUpload" disabled>파일 업로드 하기</button>
+        <button id="btnReset" class="hidden">초기화</button>
         <input id="fileInput" type="file" accept="image/*" class="hidden">
-        <span class="status" id="status">대기 중…</span>
+        <span class="status" id="status">모델 로드 대기중…</span>
       </div>
 
       <div class="row">
         <div class="col">
-          <!-- 왼쪽: 입력 영역(웹캠 or 이미지) -->
           <video id="webcam" playsinline autoplay muted class="hidden"></video>
           <canvas id="canvas" class="hidden"></canvas>
+          <div id="dropZone" class="hidden">
+            파일을 <b>여기로 끌어오거나</b><br>아래 버튼을 눌러 업로드하세요.
+          </div>
           <img id="preview" alt="preview" class="hidden"/>
-          <div class="hint">Tip: 웹캠은 HTTPS 환경에서만 정상 동작(브라우저 정책).</div>
         </div>
 
         <div class="col right-box">
-          <!-- 오른쪽: 결과 영역 -->
           <div class="label" id="topLabel"></div>
           <div id="probs"></div>
-          <div class="status">
-            모델 경로: <code id="modelPath"></code><br>
-            최근 n프레임 스무딩: <code id="smoothN">5</code>
-          </div>
         </div>
       </div>
     </div>
   </div>
 
 <script>
-  // ====== 0) 필요한 경로/옵션 ======
-  const MODEL_URL = "./model/"; // 같은 폴더라면 "./model/"
-  const SMOOTH_N = 5;           // 웹캠 예측값 스무딩(최근 N프레임 평균)
-  const FRAME_SIZE = 320;       // 웹캠/캔버스 프레임 크기
+  const MODEL_URL = "./model/";
+  const SMOOTH_N = 5;
+  const FRAME_SIZE = 320;
 
-  // ====== 1) 전역 상태 ======
   let model = null;
   let classNames = [];
   let webcam = null;
   let rafId = null;
-  let smoothQueue = []; // 최근 예측값 큐(스무딩용)
+  let smoothQueue = [];
 
   const el = (id)=>document.getElementById(id);
   const statusEl = el("status"), probsEl = el("probs"), topLabelEl = el("topLabel");
   const webcamEl = el("webcam"), canvasEl = el("canvas"), previewEl = el("preview");
-  const btnLoad = el("btnLoad"), btnWebcam = el("btnWebcam"), btnUpload = el("btnUpload"), fileInput = el("fileInput");
-  el("modelPath").textContent = MODEL_URL;
-  el("smoothN").textContent = SMOOTH_N;
+  const btnWebcam = el("btnWebcam"), btnUpload = el("btnUpload"), btnReset = el("btnReset");
+  const fileInput = el("fileInput"), dropZone = el("dropZone");
 
-  // ====== 2) UI 유틸 ======
   function setStatus(msg, warn=false){
     statusEl.textContent = msg;
     statusEl.className = "status" + (warn ? " warn" : "");
   }
   function hideAllInputs(){
-    [webcamEl, canvasEl, previewEl].forEach(v => v.classList.add("hidden"));
+    [webcamEl, canvasEl, previewEl, dropZone].forEach(v => v.classList.add("hidden"));
     stopWebcamLoop();
   }
-  function clearProbs(){
-    probsEl.innerHTML = "";
-    topLabelEl.textContent = "";
-  }
   function renderProbs(vec){
-    // vec: [p0, p1, ...] length = classNames.length
     const arr = classNames.map((name,i)=>({className:name, probability:vec[i]}))
                           .sort((a,b)=>b.probability - a.probability);
     probsEl.innerHTML = "";
@@ -131,46 +206,46 @@
     });
     if(arr.length){
       const top = arr[0];
-      topLabelEl.textContent = `예측: ${top.className} (${(top.probability*100).toFixed(1)}%)`;
-    }
+      topLabelEl.textContent = `예측 결과: ${top.className} (${(top.probability*100).toFixed(1)}%)`;
+    } else topLabelEl.textContent = "";
   }
 
-  // ====== 3) 모델 로드 ======
-  btnLoad.addEventListener("click", async ()=>{
+  async function loadModel(){
     try{
       setStatus("모델 로딩 중…");
       const modelURL = MODEL_URL + "model.json";
       const metadataURL = MODEL_URL + "metadata.json";
       model = await tmImage.load(modelURL, metadataURL);
-      classNames = model.getClassLabels ? model.getClassLabels() : Array.from({length:model.getTotalClasses()}, (_,i)=>`Class ${i}`);
-      setStatus(`모델 로딩 완료 (클래스 ${classNames.length}개)`);
+      classNames = model.getClassLabels ? model.getClassLabels()
+                 : Array.from({length:model.getTotalClasses()}, (_,i)=>`Class ${i}`);
+      setStatus(`웹캠을 열거나 파일을 업로드 해주세요.`);
       btnWebcam.disabled = false;
       btnUpload.disabled = false;
     }catch(e){
       console.error(e);
-      setStatus("모델 로드 실패. 경로를 확인해줘.", true);
+      setStatus("모델 로드 실패.", true);
     }
-  });
+  }
+  window.addEventListener("DOMContentLoaded", loadModel);
 
-  // ====== 4) 웹캠 모드 ======
   btnWebcam.addEventListener("click", async ()=>{
-    if(!model) return setStatus("먼저 모델을 로드해줘.", true);
+    if(!model) return setStatus("모델이 준비되지 않았습니다.", true);
     hideAllInputs();
-    setStatus("웹캠 초기화…");
+    setStatus("웹캠 준비중...");
     try{
-      webcam = new tmImage.Webcam(FRAME_SIZE, FRAME_SIZE, true); // w,h,flip
+      webcam = new tmImage.Webcam(FRAME_SIZE, FRAME_SIZE, true);
       await webcam.setup();
       await webcam.play();
       webcamEl.classList.remove("hidden");
       canvasEl.classList.remove("hidden");
       canvasEl.width = FRAME_SIZE;
       canvasEl.height = FRAME_SIZE;
-      setStatus("웹캠 시작. 예측 중…");
+      setStatus("웹캠으로 표정을 실시간으로 판단하고 있습니다…");
       smoothQueue = [];
       loopWebcam();
     }catch(e){
       console.error(e);
-      setStatus("웹캠 권한이 필요하거나 HTTPS 환경이 아닐 수 있어.", true);
+      setStatus("웹캠 권한이 거부되었거나 HTTPS 환경이 아닐 수 있습니다.", true);
     }
   });
 
@@ -178,12 +253,10 @@
     if(!webcam) return;
     webcam.update();
     const ctx = canvasEl.getContext("2d");
-    // Teachable Machine은 <video> 대신 webcam.canvas를 쓰는 게 안정적
     ctx.drawImage(webcam.canvas, 0, 0, canvasEl.width, canvasEl.height);
     const preds = await model.predict(canvasEl);
     const vec = preds.map(p=>p.probability);
 
-    // 스무딩(최근 N프레임 평균)
     smoothQueue.push(vec);
     if(smoothQueue.length > SMOOTH_N) smoothQueue.shift();
     const avg = smoothQueue[0].map((_,i)=>smoothQueue.reduce((s,v)=>s+v[i],0)/smoothQueue.length);
@@ -197,18 +270,35 @@
     if(webcam){ webcam.stop(); webcam = null; }
   }
 
-  // ====== 5) 파일 업로드 모드 ======
   btnUpload.addEventListener("click", ()=>{
-    if(!model) return setStatus("먼저 모델을 로드해줘.", true);
+    if(!model) return setStatus("모델이 아직 준비되지 않았습니다.", true);
     hideAllInputs();
-    previewEl.classList.remove("hidden");
-    fileInput.classList.remove("hidden");
-    fileInput.click();
+    setStatus("파일 업로드 준비중...");
+    dropZone.classList.remove("hidden");
+    btnReset.classList.add("hidden");
   });
 
-  fileInput.addEventListener("change", async (e)=>{
-    const file = e.target.files?.[0];
-    if(!file) return;
+  dropZone.addEventListener("dragover", (e)=>{
+    e.preventDefault();
+    dropZone.classList.add("dragover");
+  });
+  dropZone.addEventListener("dragleave", ()=> dropZone.classList.remove("dragover"));
+  dropZone.addEventListener("drop", (e)=>{
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+    const file = e.dataTransfer.files[0];
+    if(file) handleImageFile(file);
+  });
+  dropZone.addEventListener("click", ()=> fileInput.click());
+  fileInput.addEventListener("change", (e)=>{
+    const file = e.target.files[0];
+    if(file) handleImageFile(file);
+  });
+
+  async function handleImageFile(file){
+    hideAllInputs();
+    previewEl.classList.remove("hidden");
+    btnReset.classList.remove("hidden");
     const url = URL.createObjectURL(file);
     previewEl.src = url;
     previewEl.onload = async ()=>{
@@ -216,15 +306,22 @@
       try{
         const preds = await model.predict(previewEl);
         renderProbs(preds.map(p=>p.probability));
-        setStatus("완료.");
+        setStatus("인공지능이 사진 판별을 완료하였습니다.");
       }catch(err){
         console.error(err);
-        setStatus("예측 중 오류가 발생했어.", true);
+        setStatus("예측 중 오류가 발생하였습니다.", true);
       }
     };
+  }
+
+  btnReset.addEventListener("click", ()=>{
+    hideAllInputs();
+    probsEl.innerHTML = "";
+    topLabelEl.textContent = "";
+    btnReset.classList.add("hidden");
+    setStatus("웹캠을 열거나 파일을 업로드 해주세요.");
   });
 
-  // ====== 6) 페이지 이탈 시 정리 ======
   window.addEventListener("beforeunload", stopWebcamLoop);
 </script>
 </body>
