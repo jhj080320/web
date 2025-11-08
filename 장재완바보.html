@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>장재완 바보</title>
+  <style>
+    body {
+      background: #00ff00;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+
+    button {
+      background: linear-gradient(135deg, #16a34a, #06b6d4);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      padding: 14px 28px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 0 #0e7490;
+      transition: all 0.2s ease;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 0 #0e7490;
+      filter: brightness(1.1);
+    }
+
+    button:active {
+      transform: translateY(2px);
+      box-shadow: 0 2px 0 #0e7490;
+      filter: brightness(0.9);
+    }
+  </style>
+</head>
+<body>
+  <button onclick="alert('니 휴대폰은 곧 있으면 폭발한다 ㅋㅋ')">버튼을 누르면 돈이 빠져나갑니다.</button>
+</body>
+</html>
