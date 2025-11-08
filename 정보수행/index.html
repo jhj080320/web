@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>표정 인식 데모</title>
+
+  <!-- TF.js & Teachable Machine Image -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
+  <style>
+    :root { --bg:#0f172a; --card:#111827; --ink:#e5e7eb; --muted:#94a3b8; --accent:#22d3ee; }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Apple SD Gothic Neo}
+    .wrap{max-width:1100px;margin:40px auto;padding:0 16px}
+    h1{font-size:28px;margin:0 0 16px}
+    .sub{color:var(--muted);margin-bottom:20px}
+    .card{background:var(--card);border-radius:16px;padding:20px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+   button, label[for="file"] {
+  background: #1f2937;
+  color: var(--ink);
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+    button:hover{background:#223047}
+    .row{display:flex;gap:16px;flex-wrap:wrap}
+    .col{flex:1;min-width:300px}
+    video,canvas,img{width:100%;border-radius:12px;background:#0b1220}
+    .status{font-size:14px;color:var(--muted);margin-top:6px}
+    .bar{height:10px;background:#1f2937;border-radius:999px;overflow:hidden;margin:6px 0 14px}
+    .bar > div{height:100%;background:var(--accent);width:0%}
+    .prob-row{display:flex;justify-content:space-between;font-size:14px;color:var(--muted)}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;background:#1f2937;border:1px solid #334155;margin-left:6px}
+    .hidden{display:none !important}
+    .right-box{display:flex;flex-direction:column;gap:8px}
+    .label{font-size:18px}
+    .hint{font-size:12px;color:var(--muted)}
+    .warn{color:#fca5a5}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>표정 인식 데모 <span class="pill">Teachable Machine</span></h1>
+    <div class="sub">원하는 모드를 선택해줘. 웹캠 실시간 예측 또는 이미지 파일 업로드 예측.</div>
+
+    <div class="card">
+      <div class="controls">
+        <button id="btnLoad">모델 로드</button>
+        <button id="btnWebcam" disabled>웹캠 모드</button>
+        <button id="btnUpload" disabled>파일 업로드 모드</button>
+        <input id="fileInput" type="file" accept="image/*" class="hidden">
+        <span class="status" id="status">대기 중…</span>
+      </div>
+
+      <div class="row">
+        <div class="col">
+          <!-- 왼쪽: 입력 영역(웹캠 or 이미지) -->
+          <video id="webcam" playsinline autoplay muted class="hidden"></video>
+          <canvas id="canvas" class="hidden"></canvas>
+          <img id="preview" alt="preview" class="hidden"/>
+          <div class="hint">Tip: 웹캠은 HTTPS 환경에서만 정상 동작(브라우저 정책).</div>
+        </div>
+
+        <div class="col right-box">
+          <!-- 오른쪽: 결과 영역 -->
+          <div class="label" id="topLabel"></div>
+          <div id="probs"></div>
+          <div class="status">
+            모델 경로: <code id="modelPath"></code><br>
+            최근 n프레임 스무딩: <code id="smoothN">5</code>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // ====== 0) 필요한 경로/옵션 ======
+  const MODEL_URL = "./model/"; // 같은 폴더라면 "./model/"
+  const SMOOTH_N = 5;           // 웹캠 예측값 스무딩(최근 N프레임 평균)
+  const FRAME_SIZE = 320;       // 웹캠/캔버스 프레임 크기
+
+  // ====== 1) 전역 상태 ======
+  let model = null;
+  let classNames = [];
+  let webcam = null;
+  let rafId = null;
+  let smoothQueue = []; // 최근 예측값 큐(스무딩용)
+
+  const el = (id)=>document.getElementById(id);
+  const statusEl = el("status"), probsEl = el("probs"), topLabelEl = el("topLabel");
+  const webcamEl = el("webcam"), canvasEl = el("canvas"), previewEl = el("preview");
+  const btnLoad = el("btnLoad"), btnWebcam = el("btnWebcam"), btnUpload = el("btnUpload"), fileInput = el("fileInput");
+  el("modelPath").textContent = MODEL_URL;
+  el("smoothN").textContent = SMOOTH_N;
+
+  // ====== 2) UI 유틸 ======
+  function setStatus(msg, warn=false){
+    statusEl.textContent = msg;
+    statusEl.className = "status" + (warn ? " warn" : "");
+  }
+  function hideAllInputs(){
+    [webcamEl, canvasEl, previewEl].forEach(v => v.classList.add("hidden"));
+    stopWebcamLoop();
+  }
+  function clearProbs(){
+    probsEl.innerHTML = "";
+    topLabelEl.textContent = "";
+  }
+  function renderProbs(vec){
+    // vec: [p0, p1, ...] length = classNames.length
+    const arr = classNames.map((name,i)=>({className:name, probability:vec[i]}))
+                          .sort((a,b)=>b.probability - a.probability);
+    probsEl.innerHTML = "";
+    arr.forEach(p=>{
+      const row = document.createElement("div");
+      row.className = "prob-row";
+      row.innerHTML = `<span>${p.className}</span><span>${(p.probability*100).toFixed(1)}%</span>`;
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const fill = document.createElement("div");
+      fill.style.width = `${p.probability*100}%`;
+      bar.appendChild(fill);
+      probsEl.appendChild(row);
+      probsEl.appendChild(bar);
+    });
+    if(arr.length){
+      const top = arr[0];
+      topLabelEl.textContent = `예측: ${top.className} (${(top.probability*100).toFixed(1)}%)`;
+    }
+  }
+
+  // ====== 3) 모델 로드 ======
+  btnLoad.addEventListener("click", async ()=>{
+    try{
+      setStatus("모델 로딩 중…");
+      const modelURL = MODEL_URL + "model.json";
+      const metadataURL = MODEL_URL + "metadata.json";
+      model = await tmImage.load(modelURL, metadataURL);
+      classNames = model.getClassLabels ? model.getClassLabels() : Array.from({length:model.getTotalClasses()}, (_,i)=>`Class ${i}`);
+      setStatus(`모델 로딩 완료 (클래스 ${classNames.length}개)`);
+      btnWebcam.disabled = false;
+      btnUpload.disabled = false;
+    }catch(e){
+      console.error(e);
+      setStatus("모델 로드 실패. 경로를 확인해줘.", true);
+    }
+  });
+
+  // ====== 4) 웹캠 모드 ======
+  btnWebcam.addEventListener("click", async ()=>{
+    if(!model) return setStatus("먼저 모델을 로드해줘.", true);
+    hideAllInputs();
+    setStatus("웹캠 초기화…");
+    try{
+      webcam = new tmImage.Webcam(FRAME_SIZE, FRAME_SIZE, true); // w,h,flip
+      await webcam.setup();
+      await webcam.play();
+      webcamEl.classList.remove("hidden");
+      canvasEl.classList.remove("hidden");
+      canvasEl.width = FRAME_SIZE;
+      canvasEl.height = FRAME_SIZE;
+      setStatus("웹캠 시작. 예측 중…");
+      smoothQueue = [];
+      loopWebcam();
+    }catch(e){
+      console.error(e);
+      setStatus("웹캠 권한이 필요하거나 HTTPS 환경이 아닐 수 있어.", true);
+    }
+  });
+
+  async function loopWebcam(){
+    if(!webcam) return;
+    webcam.update();
+    const ctx = canvasEl.getContext("2d");
+    // Teachable Machine은 <video> 대신 webcam.canvas를 쓰는 게 안정적
+    ctx.drawImage(webcam.canvas, 0, 0, canvasEl.width, canvasEl.height);
+    const preds = await model.predict(canvasEl);
+    const vec = preds.map(p=>p.probability);
+
+    // 스무딩(최근 N프레임 평균)
+    smoothQueue.push(vec);
+    if(smoothQueue.length > SMOOTH_N) smoothQueue.shift();
+    const avg = smoothQueue[0].map((_,i)=>smoothQueue.reduce((s,v)=>s+v[i],0)/smoothQueue.length);
+
+    renderProbs(avg);
+    rafId = requestAnimationFrame(loopWebcam);
+  }
+
+  function stopWebcamLoop(){
+    if(rafId){ cancelAnimationFrame(rafId); rafId = null; }
+    if(webcam){ webcam.stop(); webcam = null; }
+  }
+
+  // ====== 5) 파일 업로드 모드 ======
+  btnUpload.addEventListener("click", ()=>{
+    if(!model) return setStatus("먼저 모델을 로드해줘.", true);
+    hideAllInputs();
+    previewEl.classList.remove("hidden");
+    fileInput.classList.remove("hidden");
+    fileInput.click();
+  });
+
+  fileInput.addEventListener("change", async (e)=>{
+    const file = e.target.files?.[0];
+    if(!file) return;
+    const url = URL.createObjectURL(file);
+    previewEl.src = url;
+    previewEl.onload = async ()=>{
+      setStatus("이미지 예측 중…");
+      try{
+        const preds = await model.predict(previewEl);
+        renderProbs(preds.map(p=>p.probability));
+        setStatus("완료.");
+      }catch(err){
+        console.error(err);
+        setStatus("예측 중 오류가 발생했어.", true);
+      }
+    };
+  });
+
+  // ====== 6) 페이지 이탈 시 정리 ======
+  window.addEventListener("beforeunload", stopWebcamLoop);
+</script>
+</body>
+</html>
